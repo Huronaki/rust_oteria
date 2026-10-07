@@ -5,7 +5,14 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let unit = &args[1];
-    let value: f64 = args[2].parse().unwrap();
+
+    let value: f64 = match args[2].parse::<f64>() {
+        Ok(value) => value,
+        Err(_) => {
+            println!("Enter a number");
+            return;
+        }
+    };
 
     match unit.as_str() {
         "km" => {
