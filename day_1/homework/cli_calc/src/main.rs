@@ -38,12 +38,10 @@ fn main() {
     match result {
         Some(value) => {
             println!("{} {} {} = {}", num_1, op, num_2, value);
-            return;
         }
         None => {
             if op == "/" {
                 println!("error: cannot divide by zero");
-                return;
             } else {
                 println!("error: too big values");
             }
