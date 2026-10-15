@@ -8,6 +8,59 @@ pub struct Ipv4 {
 impl Ipv4 {
     pub fn show(self) {
         println!("IpAddr({}, {}, {}, {})", self.a, self.b, self.c, self.d);
+
+        match self.range_type() {
+            Some(kind) => println!("range: {}", kind),
+            None => println!("range: ordinary address"),
+        }
+    }
+
+    // Convert four bytes into one 32-bit number
+    fn as_u32(&self) -> u32 {
+        u32::from_be_bytes([self.a, self.b, self.c, self.d])
+    }
+
+    // Check if an address belongs to a network prefix
+    fn matches_prefix(address: u32, network: u32, prefix: u32) -> bool {
+        let mask = if prefix == 0 {
+            0
+        } else {
+            u32::MAX << (32 - prefix)   //Shift 11111<-..00
+        };
+
+        // Compare the network parts of both addresses (compare every bit)
+        (address & mask) == (network & mask)
+    }
+
+    pub fn range_type(&self) -> Option<&'static str> {
+        let address = self.as_u32();
+
+        let ranges: &[(u32, u32, &str)] = &[
+            (0x00000000, 8, "current network / unspecified"),
+            (0x0a000000, 8, "private"),
+            (0x64400000, 10, "shared address space (CGNAT)"),
+            (0x7f000000, 8, "loopback"),
+            (0xa9fe0000, 16, "link-local"),
+            (0xac100000, 12, "private"),
+            (0xc0000000, 24, "protocol assignments"),
+            (0xc0000200, 24, "documentation"),
+            (0xc0586300, 24, "deprecated 6to4 relay"),
+            (0xc0a80000, 16, "private"),
+            (0xc6120000, 15, "benchmarking"),
+            (0xc6336400, 24, "documentation"),
+            (0xcb007100, 24, "documentation"),
+            (0xe0000000, 4, "multicast"),
+            (0xffffffff, 32, "limited broadcast"),
+            (0xf0000000, 4, "reserved"),
+        ];
+
+        // Check the address against each network
+        for &(network, prefix, kind) in ranges {
+            if matches_prefix(address, network, prefix) {
+                return Some(kind);
+            }
+        }
+        None
     }
 }
 
