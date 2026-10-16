@@ -56,7 +56,7 @@ impl Ipv4 {
 
         // Check the address against each network
         for &(network, prefix, kind) in ranges {
-            if matches_prefix(address, network, prefix) {
+            if Self::matches_prefix(address, network, prefix) {
                 return Some(kind);
             }
         }
