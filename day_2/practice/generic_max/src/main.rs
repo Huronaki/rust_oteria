@@ -1,6 +1,3 @@
-// TODO
-
-
 fn largest<T: PartialOrd>(list: &[T]) -> Option<&T> {
     let mut max = list.first()?;
     for n in list {
