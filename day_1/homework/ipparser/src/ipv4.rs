@@ -21,20 +21,14 @@ impl Ipv4 {
     }
 
     // Check if an address belongs to a network prefix
-    fn matches_prefix(address: u32, network: u32, prefix: u32) -> bool {
-        let mask = if prefix == 0 {
-            0
-        } else {
-            u32::MAX << (32 - prefix)   //Shift 11111<-..00
-        };
+    fn has_prefix(&self, network: u32, prefix: u32) -> bool {
+        let address = self.as_u32();
+        let shift = 32 - prefix;
 
-        // Compare the network parts of both addresses (compare every bit)
-        (address & mask) == (network & mask)
+        (address >> shift) == (network >> shift)
     }
 
     pub fn range_type(&self) -> Option<&'static str> {
-        let address = self.as_u32();
-
         let ranges: &[(u32, u32, &str)] = &[
             (0x00000000, 8, "current network / unspecified"),
             (0x0a000000, 8, "private"),
@@ -56,7 +50,7 @@ impl Ipv4 {
 
         // Check the address against each network
         for &(network, prefix, kind) in ranges {
-            if Self::matches_prefix(address, network, prefix) {
+            if self.has_prefix(network, prefix) {
                 return Some(kind);
             }
         }
