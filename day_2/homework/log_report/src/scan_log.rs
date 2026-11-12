@@ -3,7 +3,7 @@ use std::fs;
 
 pub fn scan(file_name: &str) -> Result<HashMap<String, u32>, String> {
     let text = fs::read_to_string(file_name)
-        .map_err(|_| format!("error: cannot read file '{}'", file_name))?;
+        .unwrap_or_else(|_| panic!("error: cannot read file '{}'", file_name));
     let mut res: HashMap<String, u32> = HashMap::new();
 
     for line in text.lines() {

@@ -1,45 +1,47 @@
-use shop_cart::{Book, Cart, Pen};
+use shop_cart::{Book, Cable, Cart, Item, Pen};
+use std::fs;
 
 fn main() {
+    let content = fs::read_to_string("shop_cart.csv").expect("Cannot read file");
+
     let mut books = Cart::<Book>::new();
-
-    books.add(Book {
-        name: String::from("Clean Code"),
-        price: 29.99,
-    });
-    books.add(Book {
-        name: String::from("The Rust Book"),
-        price: 25.15,
-    });
-
     let mut pens = Cart::<Pen>::new();
+    let mut cables = Cart::<Cable>::new();
 
-    pens.add(Pen {
-        name: String::from("red pen"),
-        price: 1.10,
-    });
-    pens.add(Pen {
-        name: String::from("blue pen"),
-        price: 1.25,
-    });
+    for line in content.lines().skip(1) {
+        let fields: Vec<&str> = line.split(',').collect();
 
-    println!(
-        "books: {} items, total: {:.2}",
-        books.count(),
-        books.total()
-    );
-    println!("- Clean Code");
-    println!("- The Rust Book");
+        let category = fields[0];
+        let name = fields[1].to_string();
+        let price: f64 = fields[2].parse().expect("Invalid price");
 
-    println!("pens: {} items, total: {:.2}", pens.count(), pens.total());
+        match category {
+            "book" => books.add(Book { name, price }),
+            "pen" => pens.add(Pen { name, price }),
+            "cable" => cables.add(Cable { name, price }),
+            _ => println!("Unknown category: {category}"),
+        }
+    }
 
-    println!("- red pen");
-    println!("- blue pen");
+    print_cart("Books", &books);
+    print_cart("Pens", &pens);
+    print_cart("Cables", &cables);
 
     println!(
-        "everything: {:.2} + {:.2} = {:.2}",
-        books.total(),
-        pens.total(),
-        books.total() + pens.total()
+        "\nEverything: {:.2}",
+        books.total() + pens.total() + cables.total()
     );
+}
+
+fn print_cart<T: Item>(title: &str, cart: &Cart<T>) {
+    println!(
+        "\n{}: {} items, total: {:.2}",
+        title,
+        cart.count(),
+        cart.total()
+    );
+
+    for item in cart.items() {
+        println!("- {} ({:.2})", item.name(), item.price());
+    }
 }

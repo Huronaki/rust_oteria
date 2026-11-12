@@ -1,4 +1,3 @@
-
 mod operations;
 use std::env;
 
@@ -10,13 +9,9 @@ fn main() {
         return;
     }
 
-    let mut number = match args[0].parse::<i32>() {
-        Ok(value) => value,
-        Err(_) => {
-            println!("error: expected number as first argument");
-            return;
-        }
-    };
+    let mut number = args[0]
+        .parse::<i32>()
+        .expect("error: expected number as first argument");
 
     let mut chain: Vec<fn(i32) -> i32> = Vec::new();
 
