@@ -1,7 +1,3 @@
-use std::fmt;
-use std::fs;
-use std::io;
-
 pub struct ScanConfig {
     pub target: String,
     pub ports: (u16, u16),
@@ -9,37 +5,21 @@ pub struct ScanConfig {
 }
 
 #[derive(Debug)]
-
 pub enum ConfigError {
-    Read(io::Error),
     Line(usize, String),
     Missing(&'static str),
 }
 
-impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConfigError::Read(error) => {
-                write!(f, "cannot read config: {error}")
-            }
-            ConfigError::Line(line, message) => {
-                write!(f, "line {line}: {message}")
-            }
-            ConfigError::Missing(key) => {
-                write!(f, "missing key '{key}'")
-            }
-        }
-    }
-}
 
-impl std::error::Error for ConfigError {}
+pub fn parse(content: &str) -> Result<ScanConfig, Vec<ConfigError>> {
+    let mut target = None;
+    let mut ports = None;
+    let mut threads = None;
+    let mut errors = Vec::new();
 
-pub fn load(path: &str) -> Result<ScanConfig, ConfigError> {
-    let content = fs::read_to_string(path).map_err(ConfigError::Read)?;
-
-    let mut target: Option<String> = None;
-    let mut ports: Option<(u16, u16)> = None;
-    let mut threads: Option<usize> = None;
+    let mut target_found = false;
+    let mut ports_found = false;
+    let mut threads_found = false;
 
     for (index, raw_line) in content.lines().enumerate() {
         let line_number = index + 1;
@@ -49,74 +29,135 @@ pub fn load(path: &str) -> Result<ScanConfig, ConfigError> {
             continue;
         }
 
-        let Some((key, value)) = line.split_once('=') else {
-            return Err(ConfigError::Line(
-                line_number,
-                "expected key=value".to_string(),
-            ));
+        let (key, value) = match line.split_once('=') {
+            Some(pair) => pair,
+            None => {
+                errors.push(ConfigError::Line(line_number, "expected key=value".into()));
+                continue;
+            }
         };
 
         let key = key.trim();
         let value = value.trim();
 
         if key.is_empty() || value.is_empty() {
-            return Err(ConfigError::Line(
-                line_number,
-                "key and value must not be empty".to_string(),
-            ));
+            errors.push(ConfigError::Line(line_number, "empty key or value".into()));
+            continue;
         }
 
         match key {
             "target" => {
+                target_found = true;
                 target = Some(value.to_string());
             }
+
             "ports" => {
-                let Some((start, end)) = value.split_once('-') else {
-                    return Err(ConfigError::Line(
-                        line_number,
-                        "expected ports in start-end format".to_string(),
-                    ));
+                ports_found = true;
+                let (start, end) = match value.split_once('-') {
+                    Some(pair) => pair,
+                    None => {
+                        errors.push(ConfigError::Line(line_number, "expected start-end".into()));
+                        continue;
+                    }
                 };
 
-                let start = start.parse::<u16>().map_err(|_| {
-                    ConfigError::Line(line_number, "invalid starting port".to_string())
-                })?;
+                let start = match start.parse::<u16>() {
+                    Ok(port) => port,
+                    Err(_) => {
+                        errors.push(ConfigError::Line(line_number, "invalid starting port".into()));
+                        continue;
+                    }
+                };
 
-                let end = end.parse::<u16>().map_err(|_| {
-                    ConfigError::Line(line_number, "invalid ending port".to_string())
-                })?;
+                let end = match end.parse::<u16>() {
+                    Ok(port) => port,
+                    Err(_) => {
+                        errors.push(ConfigError::Line(line_number, "invalid ending port".into()));
+                        continue;
+                    }
+                };
 
                 if start > end {
-                    return Err(ConfigError::Line(
-                        line_number,
-                        "starting port must not exceed ending port".to_string(),
-                    ));
+                    errors.push(ConfigError::Line(line_number, "invalid port range".into()));
+                    continue;
                 }
 
                 ports = Some((start, end));
             }
-            "threads" => {
-                let count = value.parse::<usize>().map_err(|_| {
-                    ConfigError::Line(
-                        line_number,
-                        "threads must be a non-negative integer".to_string(),
-                    )
-                })?;
 
-                threads = Some(count);
+            "threads" => {
+                threads_found = true;
+                match value.parse::<usize>() {
+                    Ok(count) => threads = Some(count),
+                    Err(_) => errors.push(ConfigError::Line(line_number, "invalid threads".into())),
+                }
             }
-            _ => {
-                return Err(ConfigError::Line(
-                    line_number,
-                    format!("unknown key '{key}'"),
-                ));
-            }
+
+            _ => errors.push(ConfigError::Line(
+                line_number,
+                format!("unknown key '{key}'"),
+            )),
         }
     }
 
+    if !target_found {
+        errors.push(ConfigError::Missing("target"));
+    }
+    if !ports_found {
+        errors.push(ConfigError::Missing("ports"));
+    }
+    if !threads_found {
+        errors.push(ConfigError::Missing("threads"));
+    }
+
+    if !errors.is_empty() {
+        return Err(errors);
+    }
+
     Ok(ScanConfig {
-        target: target.ok_or(ConfigError::Missing("target"))?,
-        ports: ports.ok_or(ConfigError::Missing("ports"))?,
-        threads: threads.ok_or(ConfigError::Missing("threads"))?,
+        target: target.unwrap(),
+        ports: ports.unwrap(),
+        threads: threads.unwrap(),
     })
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_config() {
+        let content = "target=localhost\nports=1-1024\nthreads=4";
+
+        let config = parse(content).unwrap();
+
+        assert_eq!(config.target, "localhost");
+        assert_eq!(config.ports, (1, 1024));
+        assert_eq!(config.threads, 4);
+    }
+
+    #[test]
+    fn missing_target() {
+        let content = "ports=1-1024\nthreads=4";
+
+        assert!(matches!(
+            parse(content),
+            Err(ConfigError::Missing("target"))
+        ));
+    }
+
+    #[test]
+    fn invalid_ports() {
+        let content = "target=localhost\nports=abc\nthreads=4";
+
+        assert!(parse(content).is_err());
+    }
+
+    #[test]
+    fn invalid_line() {
+        let content = "target=localhost\nwrong_line\nthreads=4";
+
+        assert!(parse(content).is_err());
+    }
 }
