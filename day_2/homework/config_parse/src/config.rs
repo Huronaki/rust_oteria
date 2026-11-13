@@ -10,7 +10,6 @@ pub enum ConfigError {
     Missing(&'static str),
 }
 
-
 pub fn parse(content: &str) -> Result<ScanConfig, Vec<ConfigError>> {
     let mut target = None;
     let mut ports = None;
@@ -64,7 +63,10 @@ pub fn parse(content: &str) -> Result<ScanConfig, Vec<ConfigError>> {
                 let start = match start.parse::<u16>() {
                     Ok(port) => port,
                     Err(_) => {
-                        errors.push(ConfigError::Line(line_number, "invalid starting port".into()));
+                        errors.push(ConfigError::Line(
+                            line_number,
+                            "invalid starting port".into(),
+                        ));
                         continue;
                     }
                 };
@@ -120,7 +122,6 @@ pub fn parse(content: &str) -> Result<ScanConfig, Vec<ConfigError>> {
         threads: threads.unwrap(),
     })
 }
-
 
 #[cfg(test)]
 mod tests {
